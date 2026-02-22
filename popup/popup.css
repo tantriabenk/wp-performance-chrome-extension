@@ -305,23 +305,6 @@ body {
 .el-stat { font-size: 11px; color: var(--text-muted); }
 .el-stat strong { color: var(--accent); }
 
-/* ── Elementor Tree ──────────────────────────────────────── */
-.elementor-tree {
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 8px;
-  max-height: 140px;
-  overflow-y: auto;
-}
-
-.tree-node {
-  font-size: 11px;
-  padding: 3px 0 3px 12px;
-  border-left: 1px solid var(--border);
-  color: var(--text-muted);
-  position: relative;
-}
 .tree-node::before {
   content: '─ ';
   position: absolute;

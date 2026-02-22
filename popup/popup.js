@@ -169,22 +169,6 @@ function renderStructure(data) {
     elStatus.innerHTML = '<span class="empty-state">Elementor not detected on this page.</span>';
   }
 
-  // Elementor tree
-  const treeEl = document.getElementById('elementor-tree');
-  if (el && el.tree && el.tree.length > 0) {
-    const visible = el.tree.slice(0, 50);
-    treeEl.innerHTML = visible.map(node => {
-      const cls = node.type === 'section' ? 'section'
-                : node.type === 'column'  ? 'column'
-                : 'widget';
-      return `<div class="tree-node ${cls}" style="padding-left:${(node.depth || 0) * 12 + 8}px">${escHtml(node.label)}</div>`;
-    }).join('');
-    if (el.tree.length > 50) {
-      treeEl.innerHTML += `<div class="tree-node" style="padding-left:8px">… ${el.tree.length - 50} more nodes</div>`;
-    }
-  } else {
-    treeEl.innerHTML = '<div class="empty-state">No Elementor structure found.</div>';
-  }
 }
 
 // ── Admin Tab ─────────────────────────────────────────────
@@ -220,19 +204,6 @@ function renderAdmin(data) {
 // ── Setup Buttons ─────────────────────────────────────────
 function setupButtons() {
   document.getElementById('refresh-btn').addEventListener('click', scan);
-
-  // Highlight toggle
-  document.getElementById('highlight-btn').addEventListener('click', async () => {
-    await injectScript(toggleHighlight, [true]);
-    document.getElementById('highlight-btn').style.display = 'none';
-    document.getElementById('clear-btn').style.display     = '';
-  });
-
-  document.getElementById('clear-btn').addEventListener('click', async () => {
-    await injectScript(toggleHighlight, [false]);
-    document.getElementById('highlight-btn').style.display = '';
-    document.getElementById('clear-btn').style.display     = 'none';
-  });
 
   // Admin quick actions
   const adminBtn = (btnId, pathFn) => {
@@ -599,54 +570,6 @@ function runInspector() {
   }
 
   return result;
-}
-
-function toggleHighlight(on) {
-  const STYLE_ID = 'wp-inspector-hl';
-
-  if (!on) {
-    document.getElementById(STYLE_ID)?.remove();
-    document.querySelectorAll('[data-wpi]').forEach(el => {
-      el.removeAttribute('data-wpi');
-      el.removeAttribute('data-wpi-label');
-    });
-    return;
-  }
-
-  if (!document.getElementById(STYLE_ID)) {
-    const style = document.createElement('style');
-    style.id = STYLE_ID;
-    style.textContent = `
-      [data-wpi="section"] {
-        outline: 3px solid #4f8ef7 !important;
-        outline-offset: 3px !important;
-        position: relative !important;
-      }
-      [data-wpi="section"]::before {
-        content: attr(data-wpi-label) !important;
-        position: absolute !important; top: 0 !important; left: 0 !important;
-        background: #4f8ef7 !important; color: #fff !important;
-        font: 700 10px/1 monospace !important; padding: 3px 7px !important;
-        z-index: 99999 !important; pointer-events: none !important;
-        border-radius: 0 0 4px 0 !important;
-      }
-      [data-wpi="column"] { outline: 2px dashed #7c5dfa !important; outline-offset: 2px !important; }
-      [data-wpi="widget"] { outline: 1px solid  #22c55e !important; outline-offset: 1px !important; }
-    `;
-    document.head.appendChild(style);
-  }
-
-  let si = 0;
-  document.querySelectorAll(
-    '.elementor-section, [data-element_type="section"], [data-element_type="container"]'
-  ).forEach(el => {
-    el.setAttribute('data-wpi', 'section');
-    el.setAttribute('data-wpi-label', `§${++si}`);
-  });
-  document.querySelectorAll('.elementor-column, [data-element_type="column"]')
-    .forEach(el => el.setAttribute('data-wpi', 'column'));
-  document.querySelectorAll('.elementor-widget')
-    .forEach(el => el.setAttribute('data-wpi', 'widget'));
 }
 
 function tryPurgeCache() {
