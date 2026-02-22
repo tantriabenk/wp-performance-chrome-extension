@@ -84,20 +84,28 @@ function renderOverview(data) {
 
   // Plugins
   const pluginList = document.getElementById('plugin-list');
-  pluginList.innerHTML = (data.plugins && data.plugins.length > 0)
-    ? data.plugins.map(p => `<div class="plugin-tag"><span class="dot"></span>${escHtml(p)}</div>`).join('')
-    : '<div class="empty-state">No plugins detected from markup.</div>';
+  const pluginInsights = Array.isArray(data.pluginInsights) ? data.pluginInsights : [];
+  if (pluginInsights.length > 0) {
+    pluginList.innerHTML = pluginInsights.map(p => {
+      const confidence = Number.isFinite(p.confidence) ? p.confidence : 0;
+      const evidence = Array.isArray(p.evidence) && p.evidence.length > 0
+        ? p.evidence[0]
+        : (p.level || 'Matched plugin signatures');
+      return `<div class="plugin-tag plugin-tag--insight">
+        <div class="plugin-main">
+          <span class="dot"></span>
+          <span class="plugin-name">${escHtml(p.name || p.slug || 'Unknown plugin')}</span>
+        </div>
+        <span class="plugin-confidence ${pluginConfidenceClass(confidence)}">${confidence}%</span>
+        <div class="plugin-evidence">${escHtml(evidence)}</div>
+      </div>`;
+    }).join('');
+  } else {
+    pluginList.innerHTML = (data.plugins && data.plugins.length > 0)
+      ? data.plugins.map(p => `<div class="plugin-tag"><span class="dot"></span>${escHtml(p)}</div>`).join('')
+      : '<div class="empty-state">No plugin fingerprints detected from this page.</div>';
+  }
 
-  // Performance score
-  const score = computeScore(data);
-  document.getElementById('score-fill').style.width      = `${score}%`;
-  document.getElementById('score-fill').style.background =
-    score >= 80 ? '#22c55e' : score >= 50 ? '#f59e0b' : '#ef4444';
-  document.getElementById('score-label').textContent = `${score}/100`;
-  document.getElementById('score-hint').textContent  =
-    score >= 80 ? 'Good — Page looks lean and fast.'
-    : score >= 50 ? 'Average — Some optimizations recommended.'
-    : 'Poor — Multiple performance issues found.';
 }
 
 // ── Performance Tab ───────────────────────────────────────
@@ -138,6 +146,7 @@ function renderStructure(data) {
   const nodes = data.domNodes     || 0;
   const depth = data.domDepth     || 0;
   const dups  = data.duplicateIds || 0;
+  const dupDetails = Array.isArray(data.duplicateIdDetails) ? data.duplicateIdDetails : [];
 
   setText('dom-nodes', nodes);
   setStatBadge('dom-badge',   nodes, [800,  1500]);
@@ -149,6 +158,21 @@ function renderStructure(data) {
   if      (dups === 0) applyBadge(dupBadge, 'good', 'OK');
   else if (dups <   5) applyBadge(dupBadge, 'warn', `${dups} found`);
   else                 applyBadge(dupBadge, 'bad',  `${dups} found`);
+
+  const dupListEl = document.getElementById('duplicate-ids-list');
+  if (dups === 0 || dupDetails.length === 0) {
+    dupListEl.innerHTML = '<div class="empty-state">No duplicate IDs found.</div>';
+  } else {
+    dupListEl.innerHTML = dupDetails.map(item => {
+      const id = String(item.id || '');
+      const count = Number(item.count || 0);
+      return `<div class="dup-item">
+        <div class="dup-id">#${escHtml(id)}</div>
+        <button class="dup-scroll-btn" data-scroll-dup-id="${escHtml(id)}">Scroll to</button>
+        <div class="dup-meta">${count} element${count === 1 ? '' : 's'} share this ID</div>
+      </div>`;
+    }).join('');
+  }
 
   // Elementor status card
   const elStatus = document.getElementById('elementor-status');
@@ -207,13 +231,14 @@ function setupButtons() {
 
   // Admin quick actions
   const adminBtn = (btnId, pathFn) => {
-    document.getElementById(btnId).addEventListener('click', () => {
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+    btn.addEventListener('click', () => {
       if (!siteData?.adminUrl) { showToast('Not a WordPress site'); return; }
       chrome.tabs.create({ url: pathFn(siteData.adminUrl) });
     });
   };
 
-  adminBtn('open-elementor',  b => `${b}post.php?action=elementor`);
   adminBtn('open-customizer', b => `${b}customize.php`);
   adminBtn('open-plugins',    b => `${b}plugins.php`);
   adminBtn('open-media',      b => `${b}upload.php`);
@@ -228,41 +253,27 @@ function setupButtons() {
   document.getElementById('view-source').addEventListener('click', () => {
     if (currentTabUrl) chrome.tabs.create({ url: `view-source:${currentTabUrl}` });
   });
+
+  document.getElementById('duplicate-ids-list').addEventListener('click', async (event) => {
+    const btn = event.target.closest('[data-scroll-dup-id]');
+    if (!btn) return;
+    const targetId = btn.getAttribute('data-scroll-dup-id');
+    if (!targetId) return;
+    const status = await injectScript(scrollToDuplicateId, [targetId]);
+    if (status === 'scrolled') showToast(`Scrolled to #${targetId}`);
+    else showToast(`Could not find #${targetId}`);
+  });
 }
 
 // ── Utility: inject a standalone function into the active tab ──
 async function injectScript(func, args) {
   try {
-    await chrome.scripting.executeScript({ target: { tabId: currentTabId }, func, args });
+    const [res] = await chrome.scripting.executeScript({ target: { tabId: currentTabId }, func, args });
+    return res?.result;
   } catch (e) {
     console.warn('Inject failed:', e);
+    return null;
   }
-}
-
-// ── Score ─────────────────────────────────────────────────
-function computeScore(data) {
-  let score = 100;
-  const { scripts = 0, styles = 0 } = data.assets || {};
-
-  if      (scripts > 20) score -= 20;
-  else if (scripts > 10) score -= 10;
-
-  if      (styles > 15) score -= 15;
-  else if (styles > 8)  score -= 8;
-
-  score -= (data.renderBlockers?.length || 0) * 5;
-
-  if      (data.imagesWithoutLazy > 5) score -= 10;
-  else if (data.imagesWithoutLazy > 0) score -= 5;
-
-  if      (data.domNodes > 1500) score -= 10;
-  else if (data.domNodes > 800)  score -= 5;
-
-  if (data.domDepth > 25) score -= 10;
-
-  if (data.elementor?.detected && data.elementor.sections > 20) score -= 5;
-
-  return Math.max(0, Math.min(100, score));
 }
 
 // ── Recommendations ───────────────────────────────────────
@@ -335,6 +346,12 @@ function escHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
+function pluginConfidenceClass(score) {
+  if (score >= 80) return 'plugin-confidence--high';
+  if (score >= 50) return 'plugin-confidence--mid';
+  return 'plugin-confidence--low';
+}
+
 function showError(msg) {
   document.getElementById('wp-badge').innerHTML = '<span class="badge badge--not-wp">Error</span>';
   console.warn('WP Inspector error:', msg);
@@ -367,12 +384,14 @@ function runInspector() {
     hasWooCommerce:   false,
     adminUrl:         null,
     plugins:          [],
+    pluginInsights:   [],
     assets:           { scripts: 0, styles: 0, images: 0, fonts: 0, iframes: 0 },
     renderBlockers:   [],
     imagesWithoutLazy: 0,
     domNodes:         0,
     domDepth:         0,
     duplicateIds:     0,
+    duplicateIdDetails: [],
     elementor:        { detected: false },
   };
 
@@ -439,37 +458,161 @@ function runInspector() {
   result.hasWooCommerce = !!(document.querySelector('.woocommerce') || bodyClasses.includes('woocommerce'));
 
   // ── Plugin detection ──
-  const allSrcs = [
+  const knownPluginNames = {
+    'woocommerce': 'WooCommerce',
+    'elementor': 'Elementor',
+    'contact-form-7': 'Contact Form 7',
+    'wordpress-seo': 'Yoast SEO',
+    'wp-rocket': 'WP Rocket',
+    'rank-math': 'Rank Math',
+    'sitepress-multilingual-cms': 'WPML',
+    'revslider': 'Slider Revolution',
+    'wp-smushit': 'Smush',
+    'jetpack': 'Jetpack',
+    'advanced-custom-fields': 'Advanced Custom Fields',
+    'gravityforms': 'Gravity Forms',
+    'polylang': 'Polylang',
+    'w3-total-cache': 'W3 Total Cache',
+    'google-analytics-for-wordpress': 'MonsterInsights',
+    'bb-plugin': 'Beaver Builder',
+    'divi-builder': 'Divi Builder',
+    'wpforms-lite': 'WPForms',
+    'ninja-forms': 'Ninja Forms',
+    'cookie-notice': 'Cookie Notice',
+    'wordfence': 'Wordfence',
+    'litespeed-cache': 'LiteSpeed Cache',
+    'all-in-one-seo-pack': 'All in One SEO',
+    'autoptimize': 'Autoptimize',
+    'really-simple-ssl': 'Really Simple SSL',
+    'updraftplus': 'UpdraftPlus',
+    'elementskit-lite': 'ElementsKit',
+    'duplicate-page': 'Duplicate Page',
+  };
+  const aliasRules = [
+    ['wpforms', 'wpforms-lite'],
+    ['acf', 'advanced-custom-fields'],
+    ['wpseo', 'wordpress-seo'],
+    ['yoast', 'wordpress-seo'],
+    ['wpcf7', 'contact-form-7'],
+    ['monsterinsights', 'google-analytics-for-wordpress'],
+    ['sitepress', 'sitepress-multilingual-cms'],
+    ['w3tc', 'w3-total-cache'],
+    ['beaver-builder', 'bb-plugin'],
+    ['divi', 'divi-builder'],
+    ['litespeed', 'litespeed-cache'],
+  ];
+  const pluginEvidence = {};
+  const slugFromPathRe = /\/wp-content\/plugins\/([^/?#]+)/i;
+
+  const normalizeSlug = (value) => String(value || '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9_-]/g, '');
+  const escapeRe = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+  const humanizeSlug = (slug) => slug
+    .split(/[-_]+/)
+    .filter(Boolean)
+    .map(s => s.charAt(0).toUpperCase() + s.slice(1))
+    .join(' ');
+
+  const getSlugFromUrl = (url) => {
+    const m = String(url || '').match(slugFromPathRe);
+    return m ? normalizeSlug(m[1]) : '';
+  };
+
+  const ensurePluginEntry = (slug, name) => {
+    if (!slug) return null;
+    if (!pluginEvidence[slug]) {
+      pluginEvidence[slug] = {
+        slug,
+        name: name || knownPluginNames[slug] || humanizeSlug(slug),
+        score: 0,
+        evidence: new Set(),
+      };
+    } else if (!pluginEvidence[slug].name && name) {
+      pluginEvidence[slug].name = name;
+    }
+    return pluginEvidence[slug];
+  };
+
+  const addEvidence = (slug, score, evidence, name) => {
+    const entry = ensurePluginEntry(slug, name);
+    if (!entry) return;
+    entry.score = Math.min(100, entry.score + score);
+    if (evidence) entry.evidence.add(evidence);
+  };
+
+  const allUrls = [
     ...Array.from(document.querySelectorAll('script[src]')).map(s => s.src),
-    ...Array.from(document.querySelectorAll('link[rel="stylesheet"][href]')).map(l => l.href),
+    ...Array.from(document.querySelectorAll('link[href]')).map(l => l.href),
+    ...Array.from(document.querySelectorAll('img[src]')).map(i => i.src),
+    ...Array.from(document.querySelectorAll('iframe[src]')).map(i => i.src),
   ];
-  const pluginMap = [
-    ['WP Rocket',        s => s.includes('wp-rocket')],
-    ['Yoast SEO',        s => s.includes('yoast') || s.includes('wpseo')],
-    ['Contact Form 7',   s => s.includes('contact-form-7') || s.includes('wpcf7')],
-    ['WooCommerce',      s => s.includes('woocommerce')],
-    ['WPML',             s => s.includes('wpml') || s.includes('sitepress')],
-    ['Elementor',        s => s.includes('/elementor/')],
-    ['RankMath',         s => s.includes('rank-math')],
-    ['Slider Revolution',s => s.includes('revslider')],
-    ['Smush',            s => s.includes('wp-smushit')],
-    ['Jetpack',          s => s.includes('jetpack')],
-    ['ACF',              s => s.includes('advanced-custom-fields') || s.includes('/acf/')],
-    ['Gravity Forms',    s => s.includes('gravityforms')],
-    ['Polylang',         s => s.includes('polylang')],
-    ['W3 Total Cache',   s => s.includes('w3tc') || s.includes('w3-total-cache')],
-    ['MonsterInsights',  s => s.includes('monsterinsights')],
-    ['Beaver Builder',   s => s.includes('bb-plugin') || s.includes('beaver-builder')],
-    ['Divi',             s => s.includes('/divi/')],
-    ['WPForms',          s => s.includes('wpforms')],
-    ['Ninja Forms',      s => s.includes('ninja-forms')],
-    ['Cookie Notice',    s => s.includes('cookie-notice')],
-  ];
-  const detected = new Set();
-  for (const [name, test] of pluginMap) {
-    if (allSrcs.some(test)) detected.add(name);
+
+  const pathHit = new Set();
+  for (const url of allUrls) {
+    const slug = getSlugFromUrl(url);
+    if (!slug || pathHit.has(slug)) continue;
+    pathHit.add(slug);
+    addEvidence(slug, 70, 'Asset path references /wp-content/plugins/');
   }
-  result.plugins = Array.from(detected);
+
+  const aliasHit = new Set();
+  for (const url of allUrls) {
+    const source = String(url || '').toLowerCase();
+    for (const [needle, slug] of aliasRules) {
+      const key = `${slug}:${needle}`;
+      const boundedNeedle = new RegExp(`(^|[^a-z0-9])${escapeRe(needle)}([^a-z0-9]|$)`);
+      if (boundedNeedle.test(source) && !aliasHit.has(key)) {
+        aliasHit.add(key);
+        addEvidence(slug, 35, `Matched plugin fingerprint: ${needle}`);
+      }
+    }
+  }
+
+  try {
+    const resourceEntries = performance.getEntriesByType('resource').map(e => e.name);
+    const resourceHit = new Set();
+    for (const resourceUrl of resourceEntries) {
+      const slug = getSlugFromUrl(resourceUrl);
+      if (!slug || resourceHit.has(slug)) continue;
+      resourceHit.add(slug);
+      addEvidence(slug, 20, 'Runtime network request from plugin directory');
+    }
+  } catch (_) {}
+
+  const signatureRules = [
+    { slug: 'woocommerce', score: 40, evidence: 'WooCommerce globals/classes detected', test: () => !!(window.wc_add_to_cart_params || document.querySelector('.woocommerce, .woocommerce-page')) },
+    { slug: 'elementor', score: 40, evidence: 'Elementor globals/markup detected', test: () => !!(window.elementorFrontendConfig || document.querySelector('[data-elementor-type], .elementor-section')) },
+    { slug: 'contact-form-7', score: 40, evidence: 'Contact Form 7 globals/markup detected', test: () => !!(window.wpcf7 || document.querySelector('.wpcf7')) },
+    { slug: 'wordpress-seo', score: 30, evidence: 'Yoast SEO generator metadata detected', test: () => !!document.querySelector('meta[name="generator"][content*="Yoast"]') },
+    { slug: 'rank-math', score: 30, evidence: 'Rank Math metadata/class detected', test: () => !!document.querySelector('[class*="rank-math"], script[src*="rank-math"], link[href*="rank-math"], meta[name="rank-math-primary-category"]') },
+    { slug: 'wp-rocket', score: 30, evidence: 'WP Rocket marker detected', test: () => /(?:wp-rocket|rocket-lazy-load|data-rocket)/i.test(document.documentElement.outerHTML.slice(0, 120000)) },
+    { slug: 'wordfence', score: 30, evidence: 'Wordfence marker detected', test: () => /wordfence/i.test(bodyClasses) || !!document.querySelector('script[src*="wordfence"], link[href*="wordfence"]') },
+  ];
+  for (const sig of signatureRules) {
+    try {
+      if (sig.test()) addEvidence(sig.slug, sig.score, sig.evidence);
+    } catch (_) {}
+  }
+
+  const pluginInsights = Object.values(pluginEvidence)
+    .map(entry => {
+      const confidence = Math.max(0, Math.min(100, Math.round(entry.score)));
+      return {
+        slug: entry.slug,
+        name: entry.name || knownPluginNames[entry.slug] || humanizeSlug(entry.slug),
+        confidence,
+        level: confidence >= 80 ? 'Detected' : confidence >= 50 ? 'Likely' : 'Possible',
+        evidence: Array.from(entry.evidence).slice(0, 3),
+      };
+    })
+    .sort((a, b) => b.confidence - a.confidence)
+    .slice(0, 30);
+
+  result.pluginInsights = pluginInsights;
+  result.plugins = pluginInsights.map(p => p.name);
 
   // ── Asset counts ──
   result.assets.scripts = document.querySelectorAll('script[src]').length;
@@ -525,6 +668,11 @@ function runInspector() {
     if (el.id) idMap[el.id] = (idMap[el.id] || 0) + 1;
   });
   result.duplicateIds = Object.values(idMap).filter(c => c > 1).length;
+  result.duplicateIdDetails = Object.entries(idMap)
+    .filter(([, count]) => count > 1)
+    .map(([id, count]) => ({ id, count }))
+    .sort((a, b) => b.count - a.count || a.id.localeCompare(b.id))
+    .slice(0, 40);
 
   // ── Elementor ──
   const elSections = document.querySelectorAll(
@@ -586,4 +734,23 @@ function tryPurgeCache() {
     if (el) { el.click(); return 'clicked'; }
   }
   return 'no-cache-plugin-found';
+}
+
+function scrollToDuplicateId(targetId) {
+  if (!targetId) return 'missing-id';
+  const exact = document.getElementById(String(targetId));
+  if (!exact) return 'not-found';
+
+  exact.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+  const prevOutline = exact.style.outline;
+  const prevBg = exact.style.backgroundColor;
+  exact.style.outline = '2px solid #ef4444';
+  exact.style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
+  setTimeout(() => {
+    exact.style.outline = prevOutline;
+    exact.style.backgroundColor = prevBg;
+  }, 2000);
+
+  return 'scrolled';
 }

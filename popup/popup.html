@@ -26,9 +26,9 @@
     <!-- Tab Nav -->
     <nav class="tabs">
       <button class="tab active" data-tab="overview">Overview</button>
+      <button class="tab" data-tab="admin">Admin</button>
       <button class="tab" data-tab="performance">Performance</button>
       <button class="tab" data-tab="structure">Structure</button>
-      <button class="tab" data-tab="admin">Admin</button>
     </nav>
 
     <!-- TAB: Overview -->
@@ -54,19 +54,10 @@
         </div>
       </div>
 
-      <div class="section-title mt">Detected Plugins</div>
+      <div class="section-title mt">Plugin Insights (Likely)</div>
       <div class="plugin-list" id="plugin-list">
         <div class="empty-state">Scanning plugins...</div>
       </div>
-
-      <div class="section-title mt">Performance Score</div>
-      <div class="score-bar-wrap">
-        <div class="score-bar">
-          <div class="score-fill" id="score-fill" style="width: 0%"></div>
-        </div>
-        <span class="score-label" id="score-label">—</span>
-      </div>
-      <div class="score-hint" id="score-hint"></div>
     </section>
 
     <!-- TAB: Performance -->
@@ -147,6 +138,9 @@
         <span class="stat-val" id="dup-ids">—</span>
         <span class="stat-badge" id="dup-badge"></span>
       </div>
+      <div id="duplicate-ids-list" class="duplicate-ids-list">
+        <div class="empty-state">No duplicate IDs found.</div>
+      </div>
 
     </section>
 
@@ -159,10 +153,6 @@
 
       <div class="section-title mt">Quick Actions</div>
       <div class="action-grid">
-        <button class="action-btn" id="open-elementor">
-          <span>🎨</span>
-          <span>Edit with<br>Elementor</span>
-        </button>
         <button class="action-btn" id="open-customizer">
           <span>🖌️</span>
           <span>Open<br>Customizer</span>
