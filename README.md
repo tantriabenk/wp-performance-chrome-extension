@@ -88,7 +88,6 @@ Results are scored and labeled as likely confidence, not guaranteed truth.
 - `background/service-worker.js` — background tab badge logic
 - `content/inspector.js` — passive content script and message handlers
 - `icons/` — extension icons
-- `generate-icons.js` — helper script for icon generation
 
 ## Permissions
 
