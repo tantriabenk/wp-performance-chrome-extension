@@ -1,0 +1,32 @@
+/* WP Inspector — Injected overlay styles (web accessible resource) */
+/* Used when Elementor highlight is triggered from popup */
+
+[data-wpi="section"] {
+  outline: 3px solid #4f8ef7 !important;
+  outline-offset: 3px !important;
+  position: relative !important;
+}
+
+[data-wpi="section"]::before {
+  content: attr(data-wpi-label) !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  background: #4f8ef7 !important;
+  color: #fff !important;
+  font: 700 10px/1 monospace !important;
+  padding: 3px 7px !important;
+  z-index: 99999 !important;
+  pointer-events: none !important;
+  border-radius: 0 0 4px 0 !important;
+}
+
+[data-wpi="column"] {
+  outline: 2px dashed #7c5dfa !important;
+  outline-offset: 2px !important;
+}
+
+[data-wpi="widget"] {
+  outline: 1px solid #22c55e !important;
+  outline-offset: 1px !important;
+}

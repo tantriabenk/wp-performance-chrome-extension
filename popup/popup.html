@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>WP Inspector</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="app">
+
+    <!-- Header -->
+    <header class="header">
+      <div class="header-logo">
+        <span class="logo-icon">⚡</span>
+        <div>
+          <h1>WP Inspector</h1>
+          <span class="header-sub">Performance + Structure</span>
+        </div>
+      </div>
+      <div class="header-status" id="wp-badge">
+        <span class="badge badge--detecting">Scanning...</span>
+      </div>
+    </header>
+
+    <!-- Tab Nav -->
+    <nav class="tabs">
+      <button class="tab active" data-tab="overview">Overview</button>
+      <button class="tab" data-tab="performance">Performance</button>
+      <button class="tab" data-tab="structure">Structure</button>
+      <button class="tab" data-tab="admin">Admin</button>
+    </nav>
+
+    <!-- TAB: Overview -->
+    <section class="tab-panel active" id="tab-overview">
+      <div class="section-title">Site Info</div>
+
+      <div class="info-grid">
+        <div class="info-card">
+          <div class="info-label">Theme</div>
+          <div class="info-value" id="theme-name">—</div>
+        </div>
+        <div class="info-card">
+          <div class="info-label">Page Builder</div>
+          <div class="info-value" id="page-builder">—</div>
+        </div>
+        <div class="info-card">
+          <div class="info-label">WordPress</div>
+          <div class="info-value" id="wp-version">—</div>
+        </div>
+        <div class="info-card">
+          <div class="info-label">WooCommerce</div>
+          <div class="info-value" id="woo-status">—</div>
+        </div>
+      </div>
+
+      <div class="section-title mt">Detected Plugins</div>
+      <div class="plugin-list" id="plugin-list">
+        <div class="empty-state">Scanning plugins...</div>
+      </div>
+
+      <div class="section-title mt">Performance Score</div>
+      <div class="score-bar-wrap">
+        <div class="score-bar">
+          <div class="score-fill" id="score-fill" style="width: 0%"></div>
+        </div>
+        <span class="score-label" id="score-label">—</span>
+      </div>
+      <div class="score-hint" id="score-hint"></div>
+    </section>
+
+    <!-- TAB: Performance -->
+    <section class="tab-panel" id="tab-performance">
+      <div class="section-title">Asset Counts</div>
+      <div class="stat-row">
+        <span class="stat-icon">📜</span>
+        <span class="stat-name">Scripts (JS)</span>
+        <span class="stat-val" id="js-count">—</span>
+        <span class="stat-badge" id="js-badge"></span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-icon">🎨</span>
+        <span class="stat-name">Stylesheets (CSS)</span>
+        <span class="stat-val" id="css-count">—</span>
+        <span class="stat-badge" id="css-badge"></span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-icon">🖼️</span>
+        <span class="stat-name">Images</span>
+        <span class="stat-val" id="img-count">—</span>
+        <span class="stat-badge" id="img-badge"></span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-icon">🔤</span>
+        <span class="stat-name">Web Fonts</span>
+        <span class="stat-val" id="font-count">—</span>
+        <span class="stat-badge" id="font-badge"></span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-icon">📦</span>
+        <span class="stat-name">iFrames</span>
+        <span class="stat-val" id="iframe-count">—</span>
+        <span class="stat-badge" id="iframe-badge"></span>
+      </div>
+
+      <div class="section-title mt">Render Blockers</div>
+      <div id="blockers-list" class="blockers-list">
+        <div class="empty-state">No render-blocking resources detected.</div>
+      </div>
+
+      <div class="section-title mt">Lazy Load Check</div>
+      <div class="stat-row">
+        <span class="stat-icon">💤</span>
+        <span class="stat-name">Images without lazy</span>
+        <span class="stat-val" id="no-lazy-count">—</span>
+      </div>
+
+      <div class="section-title mt">Recommendations</div>
+      <div id="recommendations" class="recommendations">
+        <div class="empty-state">Waiting for data...</div>
+      </div>
+    </section>
+
+    <!-- TAB: Structure -->
+    <section class="tab-panel" id="tab-structure">
+      <div class="section-title">Elementor Detection</div>
+      <div id="elementor-status" class="elementor-status">
+        <div class="empty-state">Checking for Elementor...</div>
+      </div>
+
+      <div class="section-title mt">DOM Overview</div>
+      <div class="stat-row">
+        <span class="stat-icon">🌳</span>
+        <span class="stat-name">Total DOM Nodes</span>
+        <span class="stat-val" id="dom-nodes">—</span>
+        <span class="stat-badge" id="dom-badge"></span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-icon">📐</span>
+        <span class="stat-name">Max DOM Depth</span>
+        <span class="stat-val" id="dom-depth">—</span>
+        <span class="stat-badge" id="depth-badge"></span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-icon">🔁</span>
+        <span class="stat-name">Duplicate IDs</span>
+        <span class="stat-val" id="dup-ids">—</span>
+        <span class="stat-badge" id="dup-badge"></span>
+      </div>
+
+      <div class="section-title mt">Elementor Sections</div>
+      <div id="elementor-tree" class="elementor-tree">
+        <div class="empty-state">No Elementor structure found.</div>
+      </div>
+
+      <div class="mt" style="text-align:center">
+        <button class="btn btn--primary" id="highlight-btn">Highlight Elementor Sections</button>
+        <button class="btn btn--danger" id="clear-btn" style="display:none">Clear Highlights</button>
+      </div>
+    </section>
+
+    <!-- TAB: Admin -->
+    <section class="tab-panel" id="tab-admin">
+      <div class="section-title">Quick Admin Links</div>
+      <div id="admin-links" class="admin-links">
+        <div class="empty-state">Visit a WordPress site to see admin links.</div>
+      </div>
+
+      <div class="section-title mt">Quick Actions</div>
+      <div class="action-grid">
+        <button class="action-btn" id="open-elementor">
+          <span>🎨</span>
+          <span>Edit with<br>Elementor</span>
+        </button>
+        <button class="action-btn" id="open-customizer">
+          <span>🖌️</span>
+          <span>Open<br>Customizer</span>
+        </button>
+        <button class="action-btn" id="open-plugins">
+          <span>🔌</span>
+          <span>Manage<br>Plugins</span>
+        </button>
+        <button class="action-btn" id="open-media">
+          <span>🖼️</span>
+          <span>Media<br>Library</span>
+        </button>
+        <button class="action-btn" id="open-updates">
+          <span>🔄</span>
+          <span>Check<br>Updates</span>
+        </button>
+        <button class="action-btn" id="open-perf">
+          <span>⚡</span>
+          <span>Speed<br>Tools</span>
+        </button>
+      </div>
+
+      <div class="section-title mt">Cache Helpers</div>
+      <div class="cache-grid">
+        <button class="btn btn--secondary" id="purge-cache">Purge Cache (WP Rocket / W3TC)</button>
+        <button class="btn btn--secondary" id="view-source">View Page Source</button>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <span id="page-url" class="footer-url">—</span>
+      <button class="refresh-btn" id="refresh-btn" title="Re-scan page">↺</button>
+    </footer>
+
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
